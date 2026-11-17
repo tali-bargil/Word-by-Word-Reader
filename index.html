@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Word by Word Reader</title>
+<link href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&family=Fredoka:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#fdf8ef; --card:#fff; --ink:#2b2d42; --soft:#8d8fa3;
+    --accent:#ff8c42; --accent2:#4ea8de; --good:#3bb273; --hl:#ffe066;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Andika',system-ui,sans-serif;min-height:100vh}
+  .wrap{max-width:900px;margin:0 auto;padding:20px}
+  h1{font-family:'Fredoka',sans-serif;font-weight:600;font-size:2rem;margin:.2em 0 .1em;text-align:center}
+  .sub{text-align:center;color:var(--soft);margin:0 0 20px}
+  .card{background:var(--card);border-radius:22px;box-shadow:0 6px 24px rgba(43,45,66,.08);padding:22px}
+  textarea{width:100%;min-height:220px;font-family:inherit;font-size:1.15rem;line-height:1.6;border:2px solid #eee3d0;border-radius:14px;padding:14px;resize:vertical;color:var(--ink)}
+  textarea:focus{outline:none;border-color:var(--accent2)}
+  .row{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-top:16px}
+  .opt{display:flex;flex-direction:column;gap:6px;font-size:.95rem;color:var(--soft)}
+  .seg{display:flex;background:#f3ecdf;border-radius:12px;padding:4px}
+  .seg button{border:0;background:transparent;font:inherit;font-size:1rem;padding:8px 14px;border-radius:9px;cursor:pointer;color:var(--ink)}
+  .seg button.on{background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.08);font-weight:700}
+  .btn{border:0;font-family:'Fredoka',sans-serif;font-size:1.25rem;font-weight:600;padding:14px 28px;border-radius:16px;cursor:pointer;color:#fff;background:var(--accent);box-shadow:0 4px 0 #d96a22;transition:transform .08s}
+  .btn:active{transform:translateY(3px);box-shadow:0 1px 0 #d96a22}
+  .btn.blue{background:var(--accent2);box-shadow:0 4px 0 #2f84b8}
+  .btn.green{background:var(--good);box-shadow:0 4px 0 #2a8b58}
+  .btn.ghost{background:#f3ecdf;color:var(--ink);box-shadow:0 4px 0 #ddd2bd}
+  .btn.small{font-size:1rem;padding:10px 16px}
+  .start{margin-left:auto}
+  select{font:inherit;font-size:1rem;padding:9px 10px;border-radius:12px;border:2px solid #eee3d0;background:#fff;color:var(--ink);max-width:260px}
+  .hidden{display:none!important}
+
+  /* game */
+  .top{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .bar{flex:1;height:14px;background:#f0e6d4;border-radius:10px;overflow:hidden}
+  .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent2),var(--good));transition:width .3s}
+  .stars{font-family:'Fredoka',sans-serif;font-size:1.3rem;white-space:nowrap}
+  .stage{min-height:300px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px 10px}
+  .word{font-family:'Andika',sans-serif;font-weight:700;font-size:clamp(3rem,12vw,7rem);line-height:1.1;animation:pop .25s ease-out;word-break:break-word}
+  @keyframes pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+  .building{margin-top:28px;font-size:clamp(1.2rem,3.4vw,1.8rem);line-height:1.7;min-height:2em;max-width:760px}
+  .building span{padding:2px 4px;border-radius:6px}
+  .building .done{color:var(--ink)}
+  .building .cur{background:var(--hl)}
+  .building .todo{color:#e3dccd}
+  .full{font-size:clamp(1.6rem,5vw,2.8rem);line-height:1.6;font-weight:700;max-width:800px;animation:pop .3s ease-out}
+  .full span{padding:2px 5px;border-radius:8px;transition:background .2s}
+  .full span.lit{background:var(--hl)}
+  .prompt{font-family:'Fredoka',sans-serif;color:var(--accent);font-size:1.3rem;margin-bottom:18px}
+  .controls{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:6px}
+  .hint{text-align:center;color:var(--soft);font-size:.9rem;margin-top:14px}
+  .end .big{font-size:4rem}
+  .endtext{text-align:left;font-size:1.3rem;line-height:1.8;max-width:760px;margin:16px auto}
+  .confetti{position:fixed;top:-20px;font-size:1.6rem;animation:fall linear forwards;pointer-events:none}
+  @keyframes fall{to{transform:translateY(110vh) rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- SETUP -->
+  <section id="setup">
+    <h1>📖 Word by Word Reader</h1>
+    <p class="sub">Paste the text to practice, then press Start.</p>
+    <div class="card">
+      <textarea id="text" spellcheck="false"></textarea>
+      <div class="row">
+        <div class="opt">Next word
+          <div class="seg" id="modeSeg">
+            <button data-v="tap" class="on">I tap</button>
+            <button data-v="auto">Automatic</button>
+          </div>
+        </div>
+        <div class="opt" id="speedBox" style="opacity:.4">Speed
+          <div class="seg" id="speedSeg">
+            <button data-v="1900">🐢 Slow</button>
+            <button data-v="1300" class="on">Medium</button>
+            <button data-v="850">🐇 Fast</button>
+          </div>
+        </div>
+        <div class="opt">Voice
+          <div style="display:flex;gap:6px">
+            <select id="voiceSel"></select>
+            <button class="btn blue small" id="testVoice" title="Test the voice">🔊</button>
+          </div>
+        </div>
+        <button class="btn start" id="startBtn">Start ▶</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- GAME -->
+  <section id="game" class="hidden">
+    <div class="top">
+      <button class="btn ghost small" id="homeBtn" title="Change text">✏️</button>
+      <div class="bar"><i id="barFill"></i></div>
+      <div class="stars">⭐ <span id="starCount">0</span></div>
+    </div>
+    <div class="card">
+      <div class="stage" id="stage"></div>
+      <div class="controls" id="controls"></div>
+      <div class="hint" id="hint"></div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+const SAMPLE = `Puff, Chub, and Ash are hungry. They want to eat a rainbow sandwich.
+
+The rainbow sandwich has jam and vegetables of many colors. It is big.
+
+MENU. The rainbow sandwich has: red tomato, orange carrot, yellow pepper, green spinach, blue jam, purple onion.
+
+Let's share it!
+
+Hello! What do you want to eat?
+
+We want a rainbow sandwich! But I don't like red tomato and orange carrot.
+
+And I don't like blue jam and purple onion.
+
+And I don't like yellow pepper and green spinach.
+
+The man makes one big sandwich for the three ducks. There is no jam and no vegetables in the sandwich.
+
+Look! It is not a rainbow sandwich. It is brown bread.`;
+
+const $ = id => document.getElementById(id);
+let store = null; try { store = window.localStorage; } catch(e) {}
+const saved = (()=>{ try { return store && store.getItem('wbw-text'); } catch(e){ return null; } })();
+$('text').value = saved || SAMPLE;
+
+let mode = 'tap', speed = 1300;
+function seg(id, cb){
+  $(id).addEventListener('click', e=>{
+    const b = e.target.closest('button'); if(!b) return;
+    [...$(id).children].forEach(x=>x.classList.toggle('on', x===b));
+    cb(b.dataset.v);
+  });
+}
+seg('modeSeg', v=>{ mode=v; $('speedBox').style.opacity = v==='auto'?1:.4; });
+seg('speedSeg', v=>{ speed=+v; });
+
+// ---- parsing ----
+function splitSentences(t){
+  t = t.replace(/\s+/g,' ').trim();
+  const out = []; let cur = '';
+  const words = t.split(' ');
+  for (let i=0;i<words.length;i++){
+    const w = words[i];
+    cur += (cur?' ':'') + w;
+    const ends = /[.!?]["'”’)]*$/.test(w);
+    const abbr = /^(Mr|Mrs|Ms|Dr|St|Mt)\.$/i.test(w);
+    if (ends && !abbr){ out.push(cur); cur=''; }
+  }
+  if (cur) out.push(cur);
+  return out.map(s=>s.split(' '));
+}
+
+// ---- state ----
+let S = [], si = 0, wi = 0, phase = 'word', stars = 0, timer = null, totalWords = 0, wordsDone = 0;
+
+$('startBtn').onclick = ()=>{
+  const t = $('text').value.trim(); if(!t) return;
+  try { store && store.setItem('wbw-text', t); } catch(e){}
+  S = splitSentences(t);
+  totalWords = S.reduce((a,s)=>a+s.length,0);
+  si=0; wi=0; stars=0; phase='word';
+  $('starCount').textContent = 0;
+  $('setup').classList.add('hidden'); $('game').classList.remove('hidden');
+  render();
+};
+$('homeBtn').onclick = ()=>{ stopAuto(); speechSynthesis && speechSynthesis.cancel(); $('game').classList.add('hidden'); $('setup').classList.remove('hidden'); };
+
+function progress(){
+  let done = 0; for(let i=0;i<si;i++) done += S[i].length;
+  done += phase==='word' ? wi : S[si] ? S[si].length : 0;
+  if (phase==='end') done = totalWords;
+  $('barFill').style.width = (100*done/totalWords)+'%';
+}
+
+function speak(text, rate){
+  try{
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text.replace(/[“”"]/g,''));
+    u.lang='en-US'; u.rate = rate || .85;
+    const all = speechSynthesis.getVoices();
+    const v = all.find(x=>x.voiceURI===chosenVoice) || all.find(x=>/^en(-|_)US/i.test(x.lang)) || all.find(x=>/^en/i.test(x.lang));
+    if (v){ u.voice = v; u.lang = v.lang; }
+    speechSynthesis.speak(u);
+    return u;
+  }catch(e){ return null; }
+}
+
+function btn(label, cls, fn){ const b=document.createElement('button'); b.className='btn '+cls; b.innerHTML=label; b.onclick=fn; return b; }
+
+function render(){
+  stopAuto();
+  const stage = $('stage'), ctr = $('controls');
+  stage.innerHTML=''; ctr.innerHTML='';
+  progress();
+
+  if (phase==='word'){
+    const sent = S[si], w = sent[wi];
+    const big = document.createElement('div'); big.className='word'; big.textContent = w; stage.appendChild(big);
+    const b = document.createElement('div'); b.className='building';
+    sent.forEach((x,i)=>{ const sp=document.createElement('span'); sp.textContent=x; sp.className = i<wi?'done':i===wi?'cur':'todo'; b.appendChild(sp); b.appendChild(document.createTextNode(' ')); });
+    stage.appendChild(b);
+    ctr.append(
+      btn('◀','ghost', back),
+      btn('🔊 Hear it','blue', ()=>speak(w,.7)),
+      btn(mode==='auto' ? '⏸ Pause' : 'Next ▶','', mode==='auto' ? toggleAuto : next)
+    );
+    $('hint').textContent = mode==='auto' ? 'Read each word out loud as it appears.' : 'Read the word out loud, then press Next (or the Space bar).';
+    if (mode==='auto' && !paused) timer = setTimeout(next, speed);
+  }
+  else if (phase==='sentence'){
+    const sent = S[si];
+    const p = document.createElement('div'); p.className='prompt'; p.textContent='Now read the whole sentence! 🎉'; stage.appendChild(p);
+    const f = document.createElement('div'); f.className='full';
+    sent.forEach(x=>{ const sp=document.createElement('span'); sp.textContent=x; f.appendChild(sp); f.appendChild(document.createTextNode(' ')); });
+    stage.appendChild(f);
+    ctr.append(
+      btn('↺ Again','ghost', ()=>{ wi=0; phase='word'; paused=false; render(); }),
+      btn('🔊 Hear it','blue', ()=>speakSentence(f, sent)),
+      btn('I read it! ⭐','green', gotStar)
+    );
+    $('hint').textContent = 'Stuck? Press "Hear it", then try again.';
+  }
+  else if (phase==='end'){
+    stage.classList.add('end');
+    stage.innerHTML = `<div class="big">🏆</div><div class="prompt" style="font-size:1.8rem">You read it all!</div><div style="font-size:1.4rem">You earned <b>${stars}</b> ⭐</div>`;
+    const t = document.createElement('div'); t.className='endtext card';
+    t.innerHTML = '<div style="color:var(--soft);font-size:1rem;margin-bottom:6px">Last challenge: read the whole text in one go 💪</div>' + S.map(s=>s.join(' ')).join(' ');
+    stage.appendChild(t);
+    ctr.append(btn('↺ Play again','', ()=>{ si=0; wi=0; stars=0; $('starCount').textContent=0; phase='word'; stage.classList.remove('end'); render(); }),
+               btn('✏️ New text','ghost', ()=>$('homeBtn').click()));
+    $('hint').textContent='';
+    confetti();
+  }
+}
+
+function speakSentence(f, sent){
+  const u = speak(sent.join(' '), .8); if(!u) return;
+  const spans = [...f.querySelectorAll('span')];
+  // highlight words as they are spoken, where the browser supports it
+  let idx = 0; const starts = []; let pos = 0;
+  sent.forEach(w=>{ starts.push(pos); pos += w.replace(/[“”"]/g,'').length + 1; });
+  u.onboundary = e=>{ if(e.name && e.name!=='word') return;
+    let k = starts.findIndex((s,i)=> e.charIndex>=s && (i===starts.length-1 || e.charIndex<starts[i+1]));
+    spans.forEach((s,i)=>s.classList.toggle('lit', i===k)); };
+  u.onend = ()=>spans.forEach(s=>s.classList.remove('lit'));
+}
+
+function next(){
+  if (phase!=='word') return;
+  if (wi < S[si].length-1){ wi++; render(); }
+  else { phase='sentence'; render(); }
+}
+function back(){
+  paused = true;
+  if (phase==='word' && wi>0){ wi--; render(); }
+  else if (phase==='word' && si>0){ si--; wi=S[si].length-1; render(); }
+}
+function gotStar(){
+  stars++; $('starCount').textContent = stars;
+  if (si < S.length-1){ si++; wi=0; phase='word'; paused=false; render(); }
+  else { phase='end'; render(); }
+}
+let paused = false;
+function toggleAuto(){ paused = !paused; render(); if(paused){ $('controls').lastChild.innerHTML='▶ Go'; } }
+function stopAuto(){ if(timer){ clearTimeout(timer); timer=null; } }
+
+function confetti(){
+  const e = ['⭐','🎉','✨','🌟','🎈'];
+  for(let i=0;i<30;i++){ const d=document.createElement('div'); d.className='confetti';
+    d.textContent=e[i%e.length]; d.style.left=Math.random()*100+'vw';
+    d.style.animationDuration=(2+Math.random()*2)+'s'; d.style.animationDelay=Math.random()*.8+'s';
+    document.body.appendChild(d); setTimeout(()=>d.remove(),5000); }
+}
+
+document.addEventListener('keydown', e=>{
+  if ($('game').classList.contains('hidden')) return;
+  if (e.code==='Space' || e.key==='ArrowRight'){ e.preventDefault();
+    if (phase==='word') { if(mode==='auto'){ toggleAuto(); } else next(); }
+    else if (phase==='sentence') gotStar(); }
+  if (e.key==='ArrowLeft'){ e.preventDefault(); back(); }
+});
+// ---- voice picker ----
+let chosenVoice = (()=>{ try { return store && store.getItem('wbw-voice'); } catch(e){ return null; } })();
+function fillVoices(){
+  let all = []; try { all = speechSynthesis.getVoices(); } catch(e){}
+  const en = all.filter(v=>/^en/i.test(v.lang));
+  const sel = $('voiceSel');
+  if (!en.length){ sel.innerHTML = '<option>Default voice</option>'; return; }
+  const region = l => /US/i.test(l)?'🇺🇸':/GB/i.test(l)?'🇬🇧':/AU/i.test(l)?'🇦🇺':/IE/i.test(l)?'🇮🇪':/IN/i.test(l)?'🇮🇳':/CA/i.test(l)?'🇨🇦':/ZA/i.test(l)?'🇿🇦':'🌐';
+  en.sort((a,b)=>a.lang.localeCompare(b.lang)||a.name.localeCompare(b.name));
+  sel.innerHTML = en.map(v=>`<option value="${v.voiceURI.replace(/"/g,'&quot;')}">${region(v.lang)} ${v.name.replace(/^(Microsoft|Google|Apple)\s*/,'').replace(/\s*Online.*$/,'')}</option>`).join('');
+  if (!chosenVoice || !en.some(v=>v.voiceURI===chosenVoice)){
+    const d = en.find(v=>/^en(-|_)US/i.test(v.lang)) || en[0]; chosenVoice = d.voiceURI;
+  }
+  sel.value = chosenVoice;
+}
+$('voiceSel').onchange = e=>{ chosenVoice = e.target.value; try{ store && store.setItem('wbw-voice', chosenVoice); }catch(err){} speak('Hello! Let\'s read together.'); };
+$('testVoice').onclick = ()=>speak('Hello! Let\'s read together.');
+try{ fillVoices(); speechSynthesis.onvoiceschanged = fillVoices; }catch(e){}
+</script>
+</body>
+</html>
