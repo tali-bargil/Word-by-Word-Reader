@@ -4,14 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Word by Word Reader</title>
-<link href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&family=Fredoka:wght@500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&family=Fredoka:wght@500;600&family=Noto+Sans+Hebrew:wght@400;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg:#fdf8ef; --card:#fff; --ink:#2b2d42; --soft:#8d8fa3;
     --accent:#ff8c42; --accent2:#4ea8de; --good:#3bb273; --hl:#ffe066;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Andika',system-ui,sans-serif;min-height:100vh}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Andika','Noto Sans Hebrew',system-ui,sans-serif;min-height:100vh}
+  h1,.btn,.prompt,.stars{font-family:'Fredoka','Noto Sans Hebrew',sans-serif!important}
+  .word,.full,.building,.endtext,textarea{font-family:'Andika','Noto Sans Hebrew',sans-serif!important}
+  [dir=rtl] .endtext{text-align:right}
+  .note{font-size:.85rem;color:var(--soft);margin-top:4px;max-width:300px}
   .wrap{max-width:900px;margin:0 auto;padding:20px}
   h1{font-family:'Fredoka',sans-serif;font-weight:600;font-size:2rem;margin:.2em 0 .1em;text-align:center}
   .sub{text-align:center;color:var(--soft);margin:0 0 20px}
@@ -66,7 +70,7 @@
     <h1>📖 Word by Word Reader</h1>
     <p class="sub">Paste the text to practice, then press Start.</p>
     <div class="card">
-      <textarea id="text" spellcheck="false"></textarea>
+      <textarea id="text" spellcheck="false" dir="auto"></textarea>
       <div class="row">
         <div class="opt">Next word
           <div class="seg" id="modeSeg">
@@ -81,11 +85,12 @@
             <button data-v="850">🐇 Fast</button>
           </div>
         </div>
-        <div class="opt">Voice
+        <div class="opt"><span id="voiceLabel">Voice</span>
           <div style="display:flex;gap:6px">
             <select id="voiceSel"></select>
             <button class="btn blue small" id="testVoice" title="Test the voice">🔊</button>
           </div>
+          <div class="note" id="voiceNote"></div>
         </div>
         <button class="btn start" id="startBtn">Start ▶</button>
       </div>
@@ -153,7 +158,7 @@ function splitSentences(t){
   for (let i=0;i<words.length;i++){
     const w = words[i];
     cur += (cur?' ':'') + w;
-    const ends = /[.!?]["'”’)]*$/.test(w);
+    const ends = /[.!?]["'”’״׳)]*$/.test(w);
     const abbr = /^(Mr|Mrs|Ms|Dr|St|Mt)\.$/i.test(w);
     if (ends && !abbr){ out.push(cur); cur=''; }
   }
@@ -167,6 +172,7 @@ let S = [], si = 0, wi = 0, phase = 'word', stars = 0, timer = null, totalWords 
 $('startBtn').onclick = ()=>{
   const t = $('text').value.trim(); if(!t) return;
   try { store && store.setItem('wbw-text', t); } catch(e){}
+  lang = detectLang(t); applyLang();
   S = splitSentences(t);
   totalWords = S.reduce((a,s)=>a+s.length,0);
   si=0; wi=0; stars=0; phase='word';
@@ -186,10 +192,12 @@ function progress(){
 function speak(text, rate){
   try{
     speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text.replace(/[“”"]/g,''));
+    const u = new SpeechSynthesisUtterance(text.replace(/[“”"״]/g,''));
     u.lang='en-US'; u.rate = rate || .85;
     const all = speechSynthesis.getVoices();
-    const v = all.find(x=>x.voiceURI===chosenVoice) || all.find(x=>/^en(-|_)US/i.test(x.lang)) || all.find(x=>/^en/i.test(x.lang));
+    u.lang = lang==='he' ? 'he-IL' : 'en-US';
+    const want = chosenVoice[lang];
+    const v = all.find(x=>x.voiceURI===want) || all.find(x=>x.lang.toLowerCase().startsWith(lang==='he'?'he':'en-us')) || all.find(x=>langOf(x)===lang);
     if (v){ u.voice = v; u.lang = v.lang; }
     speechSynthesis.speak(u);
     return u;
@@ -211,34 +219,34 @@ function render(){
     sent.forEach((x,i)=>{ const sp=document.createElement('span'); sp.textContent=x; sp.className = i<wi?'done':i===wi?'cur':'todo'; b.appendChild(sp); b.appendChild(document.createTextNode(' ')); });
     stage.appendChild(b);
     ctr.append(
-      btn('◀','ghost', back),
-      btn('🔊 Hear it','blue', ()=>speak(w,.7)),
-      btn(mode==='auto' ? '⏸ Pause' : 'Next ▶','', mode==='auto' ? toggleAuto : next)
+      btn(lang==='he'?'▶':'◀','ghost', back),
+      btn(T('hear'),'blue', ()=>speak(w,.7)),
+      btn(mode==='auto' ? T('pause') : T('next'),'', mode==='auto' ? toggleAuto : next)
     );
-    $('hint').textContent = mode==='auto' ? 'Read each word out loud as it appears.' : 'Read the word out loud, then press Next (or the Space bar).';
+    $('hint').textContent = mode==='auto' ? T('hintAuto') : T('hintTap');
     if (mode==='auto' && !paused) timer = setTimeout(next, speed);
   }
   else if (phase==='sentence'){
     const sent = S[si];
-    const p = document.createElement('div'); p.className='prompt'; p.textContent='Now read the whole sentence! 🎉'; stage.appendChild(p);
+    const p = document.createElement('div'); p.className='prompt'; p.textContent=T('whole'); stage.appendChild(p);
     const f = document.createElement('div'); f.className='full';
     sent.forEach(x=>{ const sp=document.createElement('span'); sp.textContent=x; f.appendChild(sp); f.appendChild(document.createTextNode(' ')); });
     stage.appendChild(f);
     ctr.append(
-      btn('↺ Again','ghost', ()=>{ wi=0; phase='word'; paused=false; render(); }),
-      btn('🔊 Hear it','blue', ()=>speakSentence(f, sent)),
-      btn('I read it! ⭐','green', gotStar)
+      btn(T('again'),'ghost', ()=>{ wi=0; phase='word'; paused=false; render(); }),
+      btn(T('hear'),'blue', ()=>speakSentence(f, sent)),
+      btn(T('read'),'green', gotStar)
     );
-    $('hint').textContent = 'Stuck? Press "Hear it", then try again.';
+    $('hint').textContent = T('stuck');
   }
   else if (phase==='end'){
     stage.classList.add('end');
-    stage.innerHTML = `<div class="big">🏆</div><div class="prompt" style="font-size:1.8rem">You read it all!</div><div style="font-size:1.4rem">You earned <b>${stars}</b> ⭐</div>`;
+    stage.innerHTML = `<div class="big">🏆</div><div class="prompt" style="font-size:1.8rem">${T('all')}</div><div style="font-size:1.4rem">${T('earned')} <b>${stars}</b> ⭐</div>`;
     const t = document.createElement('div'); t.className='endtext card';
-    t.innerHTML = '<div style="color:var(--soft);font-size:1rem;margin-bottom:6px">Last challenge: read the whole text in one go 💪</div>' + S.map(s=>s.join(' ')).join(' ');
+    t.innerHTML = '<div style="color:var(--soft);font-size:1rem;margin-bottom:6px">'+T('last')+'</div>' + S.map(s=>s.join(' ')).join(' ');
     stage.appendChild(t);
-    ctr.append(btn('↺ Play again','', ()=>{ si=0; wi=0; stars=0; $('starCount').textContent=0; phase='word'; stage.classList.remove('end'); render(); }),
-               btn('✏️ New text','ghost', ()=>$('homeBtn').click()));
+    ctr.append(btn(T('play'),'', ()=>{ si=0; wi=0; stars=0; $('starCount').textContent=0; phase='word'; stage.classList.remove('end'); render(); }),
+               btn(T('newtext'),'ghost', ()=>$('homeBtn').click()));
     $('hint').textContent='';
     confetti();
   }
@@ -249,7 +257,7 @@ function speakSentence(f, sent){
   const spans = [...f.querySelectorAll('span')];
   // highlight words as they are spoken, where the browser supports it
   let idx = 0; const starts = []; let pos = 0;
-  sent.forEach(w=>{ starts.push(pos); pos += w.replace(/[“”"]/g,'').length + 1; });
+  sent.forEach(w=>{ starts.push(pos); pos += w.replace(/[“”"״]/g,'').length + 1; });
   u.onboundary = e=>{ if(e.name && e.name!=='word') return;
     let k = starts.findIndex((s,i)=> e.charIndex>=s && (i===starts.length-1 || e.charIndex<starts[i+1]));
     spans.forEach((s,i)=>s.classList.toggle('lit', i===k)); };
@@ -272,7 +280,7 @@ function gotStar(){
   else { phase='end'; render(); }
 }
 let paused = false;
-function toggleAuto(){ paused = !paused; render(); if(paused){ $('controls').lastChild.innerHTML='▶ Go'; } }
+function toggleAuto(){ paused = !paused; render(); if(paused){ $('controls').lastChild.innerHTML=T('go'); } }
 function stopAuto(){ if(timer){ clearTimeout(timer); timer=null; } }
 
 function confetti(){
@@ -285,28 +293,62 @@ function confetti(){
 
 document.addEventListener('keydown', e=>{
   if ($('game').classList.contains('hidden')) return;
-  if (e.code==='Space' || e.key==='ArrowRight'){ e.preventDefault();
+  const fwd = lang==='he' ? 'ArrowLeft' : 'ArrowRight', bwd = lang==='he' ? 'ArrowRight' : 'ArrowLeft';
+  if (e.code==='Space' || e.key===fwd){ e.preventDefault();
     if (phase==='word') { if(mode==='auto'){ toggleAuto(); } else next(); }
     else if (phase==='sentence') gotStar(); }
-  if (e.key==='ArrowLeft'){ e.preventDefault(); back(); }
+  if (e.key===bwd){ e.preventDefault(); back(); }
 });
-// ---- voice picker ----
-let chosenVoice = (()=>{ try { return store && store.getItem('wbw-voice'); } catch(e){ return null; } })();
-function fillVoices(){
-  let all = []; try { all = speechSynthesis.getVoices(); } catch(e){}
-  const en = all.filter(v=>/^en/i.test(v.lang));
-  const sel = $('voiceSel');
-  if (!en.length){ sel.innerHTML = '<option>Default voice</option>'; return; }
-  const region = l => /US/i.test(l)?'🇺🇸':/GB/i.test(l)?'🇬🇧':/AU/i.test(l)?'🇦🇺':/IE/i.test(l)?'🇮🇪':/IN/i.test(l)?'🇮🇳':/CA/i.test(l)?'🇨🇦':/ZA/i.test(l)?'🇿🇦':'🌐';
-  en.sort((a,b)=>a.lang.localeCompare(b.lang)||a.name.localeCompare(b.name));
-  sel.innerHTML = en.map(v=>`<option value="${v.voiceURI.replace(/"/g,'&quot;')}">${region(v.lang)} ${v.name.replace(/^(Microsoft|Google|Apple)\s*/,'').replace(/\s*Online.*$/,'')}</option>`).join('');
-  if (!chosenVoice || !en.some(v=>v.voiceURI===chosenVoice)){
-    const d = en.find(v=>/^en(-|_)US/i.test(v.lang)) || en[0]; chosenVoice = d.voiceURI;
-  }
-  sel.value = chosenVoice;
+// ---- language ----
+let lang = 'en';
+function detectLang(t){
+  const he = (t.match(/[א-ת]/g)||[]).length, en = (t.match(/[A-Za-z]/g)||[]).length;
+  return he > en ? 'he' : 'en';
 }
-$('voiceSel').onchange = e=>{ chosenVoice = e.target.value; try{ store && store.setItem('wbw-voice', chosenVoice); }catch(err){} speak('Hello! Let\'s read together.'); };
-$('testVoice').onclick = ()=>speak('Hello! Let\'s read together.');
+const STR = {
+  en:{whole:'Now read the whole sentence! 🎉',hear:'🔊 Hear it',pause:'⏸ Pause',next:'Next ▶',go:'▶ Go',
+      hintAuto:'Read each word out loud as it appears.',hintTap:'Read the word out loud, then press Next (or the Space bar).',
+      again:'↺ Again',read:'I read it! ⭐',stuck:'Stuck? Press "Hear it", then try again.',all:'You read it all!',
+      earned:'You earned',last:'Last challenge: read the whole text in one go 💪',play:'↺ Play again',newtext:'✏️ New text'},
+  he:{whole:'עכשיו קראו את כל המשפט! 🎉',hear:'🔊 שמיעה',pause:'⏸ עצירה',next:'הבא ◀',go:'◀ המשך',
+      hintAuto:'קראו כל מילה בקול כשהיא מופיעה.',hintTap:'קראו את המילה בקול, ואז לחצו "הבא" (או רווח).',
+      again:'↺ שוב',read:'קראתי! ⭐',stuck:'נתקעתם? לחצו "שמיעה" ונסו שוב.',all:'קראתם הכול!',
+      earned:'צברתם',last:'אתגר אחרון: קראו את כל הטקסט ברצף 💪',play:'↺ לשחק שוב',newtext:'✏️ טקסט חדש'}
+};
+const T = k => STR[lang][k];
+function applyLang(){
+  const g = $('game'); g.dir = lang==='he' ? 'rtl' : 'ltr'; g.lang = lang;
+}
+
+// ---- voice picker ----
+const langOf = v => /^he|^iw/i.test(v.lang) ? 'he' : /^en/i.test(v.lang) ? 'en' : null;
+let chosenVoice = {en:null, he:null};
+try { const sv = store && JSON.parse(store.getItem('wbw-voices')||'null'); if (sv) chosenVoice = Object.assign(chosenVoice, sv); } catch(e){}
+function fillVoices(){
+  lang = detectLang($('text').value);
+  let all = []; try { all = speechSynthesis.getVoices(); } catch(e){}
+  const list = all.filter(v=>langOf(v)===lang);
+  const sel = $('voiceSel');
+  $('voiceLabel').textContent = lang==='he' ? 'Voice (Hebrew text)' : 'Voice';
+  $('voiceNote').textContent = '';
+  if (!list.length){
+    sel.innerHTML = '<option value="">Default voice</option>'; sel.disabled = true;
+    if (lang==='he') $('voiceNote').textContent = 'No Hebrew voice on this device. Try Edge on Windows, or an iPhone/iPad, to hear the words read aloud.';
+    return;
+  }
+  sel.disabled = false;
+  const region = l => /US/i.test(l)?'🇺🇸':/GB/i.test(l)?'🇬🇧':/AU/i.test(l)?'🇦🇺':/IE/i.test(l)?'🇮🇪':/IN/i.test(l)?'🇮🇳':/CA/i.test(l)?'🇨🇦':/ZA/i.test(l)?'🇿🇦':/IL/i.test(l)?'🇮🇱':'🌐';
+  list.sort((a,b)=>a.lang.localeCompare(b.lang)||a.name.localeCompare(b.name));
+  sel.innerHTML = list.map(v=>`<option value="${v.voiceURI.replace(/"/g,'&quot;')}">${region(v.lang)} ${v.name.replace(/^(Microsoft|Google|Apple)\s*/,'').replace(/\s*Online.*$/,'')}</option>`).join('');
+  if (!chosenVoice[lang] || !list.some(v=>v.voiceURI===chosenVoice[lang])){
+    const d = (lang==='en' && list.find(v=>/^en(-|_)US/i.test(v.lang))) || list[0]; chosenVoice[lang] = d.voiceURI;
+  }
+  sel.value = chosenVoice[lang];
+}
+const testLine = () => lang==='he' ? 'שלום! בואו נקרא ביחד.' : "Hello! Let's read together.";
+$('voiceSel').onchange = e=>{ chosenVoice[lang] = e.target.value; try{ store && store.setItem('wbw-voices', JSON.stringify(chosenVoice)); }catch(err){} speak(testLine()); };
+$('testVoice').onclick = ()=>{ lang = detectLang($('text').value); speak(testLine()); };
+let langTimer; $('text').addEventListener('input', ()=>{ clearTimeout(langTimer); langTimer = setTimeout(()=>{ if (detectLang($('text').value)!==lang) fillVoices(); }, 300); });
 try{ fillVoices(); speechSynthesis.onvoiceschanged = fillVoices; }catch(e){}
 </script>
 </body>
