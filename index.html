@@ -159,7 +159,7 @@ function splitSentences(t){
     const w = words[i];
     cur += (cur?' ':'') + w;
     const ends = /[.!?]["'”’״׳)]*$/.test(w);
-    const abbr = /^(Mr|Mrs|Ms|Dr|St|Mt)\.$/i.test(w);
+    const abbr = /^(Mr|Mrs|Ms|Dr|St|Mt|Hr|Fr|Nr|ca|bzw|usw|z\.B|d\.h)\.$/i.test(w);
     if (ends && !abbr){ out.push(cur); cur=''; }
   }
   if (cur) out.push(cur);
@@ -192,12 +192,12 @@ function progress(){
 function speak(text, rate){
   try{
     speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text.replace(/[“”"״]/g,''));
+    const u = new SpeechSynthesisUtterance(text.replace(/[“”„"״]/g,''));
     u.lang='en-US'; u.rate = rate || .85;
     const all = speechSynthesis.getVoices();
-    u.lang = lang==='he' ? 'he-IL' : 'en-US';
+    u.lang = LOCALE[lang];
     const want = chosenVoice[lang];
-    const v = all.find(x=>x.voiceURI===want) || all.find(x=>x.lang.toLowerCase().startsWith(lang==='he'?'he':'en-us')) || all.find(x=>langOf(x)===lang);
+    const v = all.find(x=>x.voiceURI===want) || all.find(x=>x.lang.replace('_','-').toLowerCase()===LOCALE[lang].toLowerCase()) || all.find(x=>langOf(x)===lang);
     if (v){ u.voice = v; u.lang = v.lang; }
     speechSynthesis.speak(u);
     return u;
@@ -220,7 +220,7 @@ function render(){
     stage.appendChild(b);
     ctr.append(
       btn(lang==='he'?'▶':'◀','ghost', back),
-      lang==='en' ? btn(T('hear'),'blue', ()=>speak(w,.7)) : '',
+      lang!=='he' ? btn(T('hear'),'blue', ()=>speak(w,.7)) : '',
       btn(mode==='auto' ? T('pause') : T('next'),'', mode==='auto' ? toggleAuto : next)
     );
     $('hint').textContent = mode==='auto' ? T('hintAuto') : T('hintTap');
@@ -234,7 +234,7 @@ function render(){
     stage.appendChild(f);
     ctr.append(
       btn(T('again'),'ghost', ()=>{ wi=0; phase='word'; paused=false; render(); }),
-      lang==='en' ? btn(T('hear'),'blue', ()=>speakSentence(f, sent)) : '',
+      lang!=='he' ? btn(T('hear'),'blue', ()=>speakSentence(f, sent)) : '',
       btn(T('read'),'green', gotStar)
     );
     $('hint').textContent = T('stuck');
@@ -257,7 +257,7 @@ function speakSentence(f, sent){
   const spans = [...f.querySelectorAll('span')];
   // highlight words as they are spoken, where the browser supports it
   let idx = 0; const starts = []; let pos = 0;
-  sent.forEach(w=>{ starts.push(pos); pos += w.replace(/[“”"״]/g,'').length + 1; });
+  sent.forEach(w=>{ starts.push(pos); pos += w.replace(/[“”„"״]/g,'').length + 1; });
   u.onboundary = e=>{ if(e.name && e.name!=='word') return;
     let k = starts.findIndex((s,i)=> e.charIndex>=s && (i===starts.length-1 || e.charIndex<starts[i+1]));
     spans.forEach((s,i)=>s.classList.toggle('lit', i===k)); };
@@ -301,9 +301,16 @@ document.addEventListener('keydown', e=>{
 });
 // ---- language ----
 let lang = 'en';
+const LOCALE = {en:'en-US', he:'he-IL', de:'de-DE'};
+const DE_WORDS = new Set('der die das und ist ich nicht ein eine einen dem den des mit zu es sie wir ihr du er auf für von im sind hat haben auch aber wie was wo nach bei aus mein meine kein keine sehr ja nein gut heute'.split(' '));
+const EN_WORDS = new Set('the and is are a an to of in it you he she we they this that with for on was have has not do does my your what where like want there'.split(' '));
 function detectLang(t){
-  const he = (t.match(/[א-ת]/g)||[]).length, en = (t.match(/[A-Za-z]/g)||[]).length;
-  return he > en ? 'he' : 'en';
+  const he = (t.match(/[\u05D0-\u05EA]/g)||[]).length, lat = (t.match(/[A-Za-zÄÖÜäöüß]/g)||[]).length;
+  if (he > lat) return 'he';
+  const words = t.toLowerCase().match(/[a-zäöüß]+/g) || [];
+  let de = (t.match(/[ÄÖÜäöüß]/g)||[]).length * 2, en = 0;
+  words.forEach(w=>{ if (DE_WORDS.has(w)) de++; if (EN_WORDS.has(w)) en++; });
+  return de > en ? 'de' : 'en';
 }
 const STR = {
   en:{whole:'Now read the whole sentence! 🎉',hear:'🔊 Hear it',pause:'⏸ Pause',next:'Next ▶',go:'▶ Go',
@@ -315,14 +322,18 @@ const STR = {
       again:'↺ שוב',read:'קראתי! ⭐',stuck:'נתקעתם? לחצו "שוב" וקראו מילה אחרי מילה.',all:'קראתם הכול!',
       earned:'צברתם',last:'אתגר אחרון: קראו את כל הטקסט ברצף 💪',play:'↺ לשחק שוב',newtext:'✏️ טקסט חדש'}
 };
+STR.de = {whole:'Jetzt lies den ganzen Satz! 🎉',hear:'🔊 Anhören',pause:'⏸ Pause',next:'Weiter ▶',go:'▶ Los',
+      hintAuto:'Lies jedes Wort laut, wenn es erscheint.',hintTap:'Lies das Wort laut und drücke dann „Weiter“ (oder die Leertaste).',
+      again:'↺ Nochmal',read:'Gelesen! ⭐',stuck:'Hängst du fest? Drücke „Anhören“ und versuch es nochmal.',all:'Du hast alles gelesen!',
+      earned:'Du hast',last:'Letzte Aufgabe: Lies den ganzen Text am Stück 💪',play:'↺ Nochmal spielen',newtext:'✏️ Neuer Text'};
 const T = k => STR[lang][k];
 function applyLang(){
   const g = $('game'); g.dir = lang==='he' ? 'rtl' : 'ltr'; g.lang = lang;
 }
 
 // ---- voice picker ----
-const langOf = v => /^he|^iw/i.test(v.lang) ? 'he' : /^en/i.test(v.lang) ? 'en' : null;
-let chosenVoice = {en:null, he:null};
+const langOf = v => /^he|^iw/i.test(v.lang) ? 'he' : /^en/i.test(v.lang) ? 'en' : /^de/i.test(v.lang) ? 'de' : null;
+let chosenVoice = {en:null, he:null, de:null};
 try { const sv = store && JSON.parse(store.getItem('wbw-voices')||'null'); if (sv) chosenVoice = Object.assign(chosenVoice, sv); } catch(e){}
 function fillVoices(){
   lang = detectLang($('text').value);
@@ -331,7 +342,7 @@ function fillVoices(){
   const sel = $('voiceSel');
   $('voiceLabel').parentElement.classList.toggle('hidden', lang==='he');
   if (lang==='he') return;
-  $('voiceLabel').textContent = lang==='he' ? 'Voice (Hebrew text)' : 'Voice';
+  $('voiceLabel').textContent = lang==='de' ? 'Voice (German text)' : 'Voice';
   $('voiceNote').textContent = '';
   if (!list.length){
     sel.innerHTML = '<option value="">Default voice</option>'; sel.disabled = true;
@@ -339,15 +350,15 @@ function fillVoices(){
     return;
   }
   sel.disabled = false;
-  const region = l => /US/i.test(l)?'🇺🇸':/GB/i.test(l)?'🇬🇧':/AU/i.test(l)?'🇦🇺':/IE/i.test(l)?'🇮🇪':/IN/i.test(l)?'🇮🇳':/CA/i.test(l)?'🇨🇦':/ZA/i.test(l)?'🇿🇦':/IL/i.test(l)?'🇮🇱':'🌐';
+  const region = l => /US/i.test(l)?'🇺🇸':/GB/i.test(l)?'🇬🇧':/AU/i.test(l)?'🇦🇺':/IE/i.test(l)?'🇮🇪':/IN/i.test(l)?'🇮🇳':/CA/i.test(l)?'🇨🇦':/ZA/i.test(l)?'🇿🇦':/DE/i.test(l)?'🇩🇪':/AT/i.test(l)?'🇦🇹':/CH/i.test(l)?'🇨🇭':'🌐';
   list.sort((a,b)=>a.lang.localeCompare(b.lang)||a.name.localeCompare(b.name));
   sel.innerHTML = list.map(v=>`<option value="${v.voiceURI.replace(/"/g,'&quot;')}">${region(v.lang)} ${v.name.replace(/^(Microsoft|Google|Apple)\s*/,'').replace(/\s*Online.*$/,'')}</option>`).join('');
   if (!chosenVoice[lang] || !list.some(v=>v.voiceURI===chosenVoice[lang])){
-    const d = (lang==='en' && list.find(v=>/^en(-|_)US/i.test(v.lang))) || list[0]; chosenVoice[lang] = d.voiceURI;
+    const d = list.find(v=>v.lang.replace('_','-').toLowerCase()===LOCALE[lang].toLowerCase()) || list[0]; chosenVoice[lang] = d.voiceURI;
   }
   sel.value = chosenVoice[lang];
 }
-const testLine = () => lang==='he' ? 'שלום! בואו נקרא ביחד.' : "Hello! Let's read together.";
+const testLine = () => lang==='de' ? 'Hallo! Lass uns zusammen lesen.' : "Hello! Let's read together.";
 $('voiceSel').onchange = e=>{ chosenVoice[lang] = e.target.value; try{ store && store.setItem('wbw-voices', JSON.stringify(chosenVoice)); }catch(err){} speak(testLine()); };
 $('testVoice').onclick = ()=>{ lang = detectLang($('text').value); speak(testLine()); };
 let langTimer; $('text').addEventListener('input', ()=>{ clearTimeout(langTimer); langTimer = setTimeout(()=>{ if (detectLang($('text').value)!==lang) fillVoices(); }, 300); });
