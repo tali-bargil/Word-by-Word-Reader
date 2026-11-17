@@ -137,7 +137,7 @@ Look! It is not a rainbow sandwich. It is brown bread.`;
 const $ = id => document.getElementById(id);
 let store = null; try { store = window.localStorage; } catch(e) {}
 const saved = (()=>{ try { return store && store.getItem('wbw-text'); } catch(e){ return null; } })();
-$('text').value = saved || SAMPLE;
+$('text').value = '';
 
 let mode = 'tap', speed = 1300;
 function seg(id, cb){
@@ -220,7 +220,7 @@ function render(){
     stage.appendChild(b);
     ctr.append(
       btn(lang==='he'?'▶':'◀','ghost', back),
-      btn(T('hear'),'blue', ()=>speak(w,.7)),
+      lang==='en' ? btn(T('hear'),'blue', ()=>speak(w,.7)) : '',
       btn(mode==='auto' ? T('pause') : T('next'),'', mode==='auto' ? toggleAuto : next)
     );
     $('hint').textContent = mode==='auto' ? T('hintAuto') : T('hintTap');
@@ -234,7 +234,7 @@ function render(){
     stage.appendChild(f);
     ctr.append(
       btn(T('again'),'ghost', ()=>{ wi=0; phase='word'; paused=false; render(); }),
-      btn(T('hear'),'blue', ()=>speakSentence(f, sent)),
+      lang==='en' ? btn(T('hear'),'blue', ()=>speakSentence(f, sent)) : '',
       btn(T('read'),'green', gotStar)
     );
     $('hint').textContent = T('stuck');
@@ -312,7 +312,7 @@ const STR = {
       earned:'You earned',last:'Last challenge: read the whole text in one go 💪',play:'↺ Play again',newtext:'✏️ New text'},
   he:{whole:'עכשיו קראו את כל המשפט! 🎉',hear:'🔊 שמיעה',pause:'⏸ עצירה',next:'הבא ◀',go:'◀ המשך',
       hintAuto:'קראו כל מילה בקול כשהיא מופיעה.',hintTap:'קראו את המילה בקול, ואז לחצו "הבא" (או רווח).',
-      again:'↺ שוב',read:'קראתי! ⭐',stuck:'נתקעתם? לחצו "שמיעה" ונסו שוב.',all:'קראתם הכול!',
+      again:'↺ שוב',read:'קראתי! ⭐',stuck:'נתקעתם? לחצו "שוב" וקראו מילה אחרי מילה.',all:'קראתם הכול!',
       earned:'צברתם',last:'אתגר אחרון: קראו את כל הטקסט ברצף 💪',play:'↺ לשחק שוב',newtext:'✏️ טקסט חדש'}
 };
 const T = k => STR[lang][k];
@@ -329,6 +329,8 @@ function fillVoices(){
   let all = []; try { all = speechSynthesis.getVoices(); } catch(e){}
   const list = all.filter(v=>langOf(v)===lang);
   const sel = $('voiceSel');
+  $('voiceLabel').parentElement.classList.toggle('hidden', lang==='he');
+  if (lang==='he') return;
   $('voiceLabel').textContent = lang==='he' ? 'Voice (Hebrew text)' : 'Voice';
   $('voiceNote').textContent = '';
   if (!list.length){
